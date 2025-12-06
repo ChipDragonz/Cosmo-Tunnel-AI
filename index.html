@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cosmic Tunnel - made by TANTIEN</title>
+    
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #050505; font-family: 'Segoe UI', sans-serif; color: white; user-select: none; -webkit-user-select: none; }
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+        
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none;
+        }
+
+        /* HUD */
+        #hud {
+            position: absolute; top: 20px; left: 20px;
+            background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(5px);
+            padding: 10px 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);
+            display: none;
+        }
+        .stat-row { display: flex; gap: 20px; font-weight: bold; font-size: 14px; color: #bbb; }
+        .stat-val { font-size: 24px; color: white; display: block; margin-top: 5px; }
+        #score-display { color: #00ffcc; }
+        #hp-display { color: #ff3333; }
+        
+        #hp-bar-container { width: 100%; height: 4px; background: #333; margin-top: 5px; }
+        #hp-bar-fill { width: 100%; height: 100%; background: #ff3333; transition: width 0.1s linear; }
+
+        /* Effect Message */
+        #effect-msg {
+            position: absolute; top: 25%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 24px; font-weight: 900; color: #ffff00; text-shadow: 0 0 20px #ffff00;
+            display: none; text-transform: uppercase; letter-spacing: 2px; text-align: center; width: 100%;
+        }
+
+        /* Panels */
+        .center-panel {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            text-align: center; background: rgba(0,0,0,0.85); padding: 30px; border-radius: 20px;
+            border: 2px solid #00aaff; box-shadow: 0 0 50px rgba(0, 170, 255, 0.3);
+            width: 80%; max-width: 450px; box-sizing: border-box;
+        }
+
+        #start-screen { border-color: #00aaff; }
+        #game-over-screen { border-color: #ff3333; display: none; }
+
+        h1 { margin: 0 0 10px 0; color: #00aaff; font-size: 32px; text-transform: uppercase; letter-spacing: 2px; line-height: 1.2; }
+        .guide { font-size: 15px; color: #ddd; margin: 15px 0; line-height: 1.6; text-align: left; }
+        .alert-text { color: #ff3333; font-weight: bold; font-size: 13px; margin-bottom: 15px; display: block;}
+        .gesture-icon { font-size: 36px; display: block; margin: 10px 0; }
+        .action-text { color: #00ffcc; font-weight: bold; font-size: 18px; animation: pulse 1s infinite; }
+        .high-score-label { font-size: 14px; color: #aaa; margin-top: 5px; }
+
+        .progress-container {
+            width: 100%; height: 8px; background: #333; border-radius: 5px; margin-top: 20px; overflow: hidden;
+        }
+        .progress-bar { width: 0%; height: 100%; background: #00ffcc; transition: width 0.1s linear; }
+
+        /* Camera Preview */
+        #video-preview {
+            position: absolute; bottom: 20px; right: 20px; width: 120px; height: 90px;
+            border-radius: 10px; transform: scaleX(-1); opacity: 0.5; border: 2px solid #555; object-fit: cover;
+        }
+
+        #loading-text {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 20px; color: #00ffcc; font-weight: bold; text-shadow: 0 0 10px #00ffcc; text-align: center; width: 100%;
+        }
+
+        @keyframes pulse { 0% { opacity: 0.5; } 100% { opacity: 1; } }
+
+        @media screen and (max-width: 768px) {
+            h1 { font-size: 24px; }
+            .guide { font-size: 13px; }
+            .center-panel { padding: 20px; width: 90%; }
+            .stat-val { font-size: 20px; }
+            #hud { top: 10px; left: 10px; padding: 8px 15px; }
+            #video-preview { width: 100px; height: 75px; bottom: 10px; right: 10px; }
+        }
+    </style>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+    <div id="loading-text">Đang khởi động Camera...<br><span style="font-size:14px; color:#aaa">(Vui lòng cho phép truy cập)</span></div>
+
+    <div id="ui-layer">
+        <div id="hud">
+            <div class="stat-row">
+                <div>SCORE <span id="score-display" class="stat-val">0</span></div>
+                <div>FUEL <span id="hp-display" class="stat-val">100</span>%</div>
+            </div>
+            <div id="hp-bar-container"><div id="hp-bar-fill"></div></div>
+            <div style="font-size: 12px; margin-top: 5px; color: #666;">High Score: <span id="hud-high-score">0</span></div>
+        </div>
+        
+        <div id="effect-msg">SLOW MOTION!</div>
+
+        <div id="start-screen" class="center-panel">
+            <h1>Cosmic Tunnel</h1>
+            <div class="guide">
+                🔴 <strong>Vòng Đỏ:</strong> KẸP TAY (Thu nhỏ)<br>
+                🟢 <strong>Vòng Xanh:</strong> MỞ TAY (Hồi máu + Điểm)<br>
+                🟡 <strong>Vòng Vàng:</strong> MỞ TAY (Chậm 5s)
+            </div>
+            <span class="alert-text">⚠️ Va chạm Đỏ sẽ trừ điểm và máu!</span>
+            <div class="gesture-icon">🖐️</div>
+            <div class="action-text">XÒE TAY ĐỂ BẮT ĐẦU</div>
+            <div class="progress-container"><div id="start-bar" class="progress-bar"></div></div>
+        </div>
+
+        <div id="game-over-screen" class="center-panel">
+            <h2 style="color: #ff3333; font-size: 32px; margin: 0;">GAME OVER</h2>
+            <p style="font-size: 24px; margin: 10px 0; font-weight: bold;">Score: <span id="final-score">0</span></p>
+            <div class="high-score-label">Best: <span id="best-score">0</span></div>
+            <p class="guide" style="margin-top: 20px; font-size: 14px; text-align: center;">🖐️ XÒE TAY ĐỂ CHƠI LẠI</p>
+            <div class="progress-container"><div id="restart-bar" class="progress-bar"></div></div>
+        </div>
+    </div>
+
+    <video id="video-preview" playsinline></video>
+    <div id="canvas-container"></div>
+
+    <script>
+        const _0x5cd481=_0x166a;(function(_0x20d714,_0x1a610f){const _0x581013=_0x166a,_0x1ec0f1=_0x20d714();while(!![]){try{const _0x3dda2d=parseInt(_0x581013(0x130))/0x1*(parseInt(_0x581013(0x167))/0x2)+-parseInt(_0x581013(0x156))/0x3+-parseInt(_0x581013(0x133))/0x4*(-parseInt(_0x581013(0x12f))/0x5)+-parseInt(_0x581013(0x152))/0x6+parseInt(_0x581013(0x161))/0x7+parseInt(_0x581013(0x19f))/0x8*(-parseInt(_0x581013(0x159))/0x9)+-parseInt(_0x581013(0x178))/0xa*(-parseInt(_0x581013(0x174))/0xb);if(_0x3dda2d===_0x1a610f)break;else _0x1ec0f1['push'](_0x1ec0f1['shift']());}catch(_0x1bf845){_0x1ec0f1['push'](_0x1ec0f1['shift']());}}}(_0x1ca1,0xadacd));const isMobile=/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i['test'](navigator[_0x5cd481(0x176)])||window[_0x5cd481(0x14b)]<0x300,CONFIG={'particleCount':isMobile?0x12c:0x1f40,'baseRadius':0xc,'colors':{'normal':0xaaff,'hit':0xff0000,'bonus':0xff88,'slow':0xffff00},'speeds':{'start':isMobile?2.5:0.8,'inc':isMobile?0.003:0.0005},'spawnRate':isMobile?0.04:0.02,'cameraX':isMobile?-0x1e:-0x23,'fov':isMobile?0x64:0x3c,'camWidth':isMobile?0xa0:0x280,'camHeight':isMobile?0x78:0x1e0,'aiInterval':isMobile?0x3c:0x0},STATE={'status':'LOADING','score':0x0,'health':0x64,'speed':CONFIG[_0x5cd481(0x13b)][_0x5cd481(0x160)],'highScore':parseInt(localStorage['getItem'](_0x5cd481(0x172)))||0x0,'gestureTimer':0x0,'timeScale':0x1};let slowMotionTimer=null,lastAIScanTime=0x0;const ui={'loading':document[_0x5cd481(0x17b)]('loading-text'),'startScreen':document[_0x5cd481(0x17b)](_0x5cd481(0x158)),'startBar':document[_0x5cd481(0x17b)](_0x5cd481(0x16a)),'hud':document[_0x5cd481(0x17b)](_0x5cd481(0x12c)),'score':document['getElementById'](_0x5cd481(0x137)),'hp':document[_0x5cd481(0x17b)](_0x5cd481(0x1a2)),'hpBar':document[_0x5cd481(0x17b)]('hp-bar-fill'),'hudHigh':document[_0x5cd481(0x17b)]('hud-high-score'),'gameOver':document['getElementById']('game-over-screen'),'finalScore':document[_0x5cd481(0x17b)](_0x5cd481(0x181)),'bestScore':document[_0x5cd481(0x17b)](_0x5cd481(0x14e)),'restartBar':document[_0x5cd481(0x17b)]('restart-bar'),'effectMsg':document[_0x5cd481(0x17b)]('effect-msg')};function _0x166a(_0x3b32a1,_0x266302){_0x3b32a1=_0x3b32a1-0x127;const _0x1ca1ce=_0x1ca1();let _0x166a5e=_0x1ca1ce[_0x3b32a1];return _0x166a5e;}ui[_0x5cd481(0x1a0)]['innerText']=STATE[_0x5cd481(0x173)];const scene=new THREE[(_0x5cd481(0x15d))]();scene['fog']=new THREE['FogExp2'](0x50505,0.0015);const camera=new THREE[(_0x5cd481(0x144))](CONFIG[_0x5cd481(0x1a3)],window[_0x5cd481(0x14b)]/window['innerHeight'],0.1,0x7d0);camera['position'][_0x5cd481(0x1ab)](CONFIG['cameraX'],0x1e,0x5a),camera[_0x5cd481(0x1a6)](0x0,0x0,-0x14);const renderer=new THREE['WebGLRenderer']({'antialias':!isMobile,'alpha':![],'powerPreference':_0x5cd481(0x18c),'precision':isMobile?_0x5cd481(0x142):_0x5cd481(0x135)});renderer[_0x5cd481(0x12a)](window[_0x5cd481(0x14b)],window[_0x5cd481(0x186)]),renderer[_0x5cd481(0x13c)](isMobile?0x1:Math[_0x5cd481(0x148)](window[_0x5cd481(0x17f)],0x2)),document[_0x5cd481(0x17b)](_0x5cd481(0x18f))[_0x5cd481(0x180)](renderer['domElement']);const gridHelper=new THREE[(_0x5cd481(0x139))](0x7d0,0x64,0x222222,0x111111);gridHelper[_0x5cd481(0x182)]['y']=-0x19,scene[_0x5cd481(0x141)](gridHelper);function _0x1ca1(){const _0x22a617=['height','start','2490306IGqRMV','gameOver','geometry','send','bestScore','hpBar','6rnqACO','particleCount','aiInterval','start-bar','slow','array','inc','Texture','normal','keyCode','GAMEOVER','cosmic_highscore','highScore','11EIxofE','attributes','userAgent','display','155850UMlhzF','lerp','danger','getElementById','bonus','needsUpdate','none','devicePixelRatio','appendChild','final-score','position','BufferGeometry','max','type','innerHeight','length','fillStyle','block','gestureTimer','innerText','high-performance','100%','color','canvas-container','AdditiveBlending','contextmenu','width','pow','colors','rgba(0,170,255,0.5)','Mesh','baseRadius','PLAYING','resize','checked','startScreen','100','Points','camWidth','1615008ANHMKJ','hudHigh','shiftKey','hp-display','fov','mesh','setOptions','lookAt','preventDefault','speed','rotation','remove','set','forEach','splice','cos','multiHandLandmarks','white','restartBar','visible','transparent','setSize','createRadialGradient','hud','acos','setHex','5760095hsNXjH','409217CHJuvq','effectMsg','score','4IfYRdI','ctrlKey','highp','spawnRate','score-display','frustumCulled','GridHelper','setAttribute','speeds','setPixelRatio','cameraX','addColorStop','aspect','loading','add','lowp','WAITING','PerspectiveCamera','random','hit','status','min','canvas','camHeight','innerWidth','video-preview','MeshBasicMaterial','best-score','TorusGeometry','getContext','addEventListener','3161064CXJZfq','charCodeAt','updateProjectionMatrix','style','298992KwHayM','sqrt','start-screen','63rIihgq','render','timeScale','health','Scene','sin'];_0x1ca1=function(){return _0x22a617;};return _0x1ca1();}const positions=new Float32Array(CONFIG[_0x5cd481(0x168)]*0x3),originalPositions=new Float32Array(CONFIG['particleCount']*0x3);for(let i=0x0;i<CONFIG[_0x5cd481(0x168)];i++){const phi=Math[_0x5cd481(0x12d)](-0x1+0x2*i/CONFIG[_0x5cd481(0x168)]),theta=Math[_0x5cd481(0x157)](CONFIG[_0x5cd481(0x168)]*Math['PI'])*phi,x=CONFIG[_0x5cd481(0x197)]*Math[_0x5cd481(0x1ae)](theta)*Math[_0x5cd481(0x15e)](phi),y=CONFIG['baseRadius']*Math['sin'](theta)*Math[_0x5cd481(0x15e)](phi),z=CONFIG['baseRadius']*Math[_0x5cd481(0x1ae)](phi);positions[i*0x3]=originalPositions[i*0x3]=x,positions[i*0x3+0x1]=originalPositions[i*0x3+0x1]=y,positions[i*0x3+0x2]=originalPositions[i*0x3+0x2]=z;}const geometry=new THREE[(_0x5cd481(0x183))]();geometry[_0x5cd481(0x13a)](_0x5cd481(0x182),new THREE['BufferAttribute'](positions,0x3));const canvas=document['createElement'](_0x5cd481(0x149));canvas[_0x5cd481(0x192)]=0x20,canvas[_0x5cd481(0x15f)]=0x20;const ctx=canvas[_0x5cd481(0x150)]('2d'),grd=ctx[_0x5cd481(0x12b)](0x10,0x10,0x0,0x10,0x10,0x10);grd[_0x5cd481(0x13e)](0x0,_0x5cd481(0x1b0)),grd['addColorStop'](0.4,_0x5cd481(0x195)),grd[_0x5cd481(0x13e)](0x1,_0x5cd481(0x129)),ctx[_0x5cd481(0x188)]=grd,ctx['fillRect'](0x0,0x0,0x20,0x20);const texture=new THREE[(_0x5cd481(0x16e))](canvas);texture['needsUpdate']=!![];const material=new THREE['PointsMaterial']({'color':CONFIG['colors'][_0x5cd481(0x16f)],'size':isMobile?0x6:0x2,'map':texture,'transparent':!![],'opacity':0.9,'blending':THREE[_0x5cd481(0x190)],'depthWrite':![]}),player=new THREE[(_0x5cd481(0x19d))](geometry,material);player[_0x5cd481(0x138)]=![],scene[_0x5cd481(0x141)](player);let obstacles=[];const SPAWN_Z=-0x258;let targetScale=0x1,currentScale=0x1;const matRed=new THREE[(_0x5cd481(0x14d))]({'color':0xff3333,'wireframe':!![],'transparent':!![],'opacity':0.8}),matGreen=new THREE['MeshBasicMaterial']({'color':0xff88,'wireframe':!![],'transparent':!![],'opacity':0.6}),matYellow=new THREE['MeshBasicMaterial']({'color':0xffff00,'wireframe':!![],'transparent':!![],'opacity':0.8});function startGame(){const _0x36c502=_0x5cd481;STATE['status']=_0x36c502(0x198),STATE['score']=0x0,STATE[_0x36c502(0x15c)]=0x64,STATE['speed']=CONFIG[_0x36c502(0x13b)][_0x36c502(0x160)],STATE[_0x36c502(0x15b)]=0x1,ui[_0x36c502(0x19b)]['style'][_0x36c502(0x177)]=_0x36c502(0x17e),ui[_0x36c502(0x162)]['style'][_0x36c502(0x177)]='none',ui[_0x36c502(0x12c)][_0x36c502(0x155)][_0x36c502(0x177)]=_0x36c502(0x189),ui[_0x36c502(0x132)][_0x36c502(0x18b)]='0',ui['hp'][_0x36c502(0x18b)]=_0x36c502(0x19c),ui[_0x36c502(0x166)][_0x36c502(0x155)][_0x36c502(0x192)]=_0x36c502(0x18d),ui['effectMsg'][_0x36c502(0x155)][_0x36c502(0x177)]='none';if(slowMotionTimer)clearTimeout(slowMotionTimer);obstacles[_0x36c502(0x1ac)](_0x1653f7=>scene[_0x36c502(0x1aa)](_0x1653f7[_0x36c502(0x1a4)])),obstacles=[],material[_0x36c502(0x18e)][_0x36c502(0x12e)](CONFIG[_0x36c502(0x194)][_0x36c502(0x16f)]),player[_0x36c502(0x128)]=!![],camera[_0x36c502(0x182)]['x']=CONFIG[_0x36c502(0x13d)];}function endGame(){const _0x36c0a9=_0x5cd481;STATE['status']=_0x36c0a9(0x171),STATE['score']>STATE[_0x36c0a9(0x173)]&&(STATE[_0x36c0a9(0x173)]=STATE[_0x36c0a9(0x132)],localStorage['setItem']('cosmic_highscore',STATE[_0x36c0a9(0x173)])),ui[_0x36c0a9(0x1a0)][_0x36c0a9(0x18b)]=STATE['highScore'],ui['hud']['style'][_0x36c0a9(0x177)]=_0x36c0a9(0x17e),ui['finalScore'][_0x36c0a9(0x18b)]=STATE[_0x36c0a9(0x132)],ui[_0x36c0a9(0x165)][_0x36c0a9(0x18b)]=STATE['highScore'],ui[_0x36c0a9(0x162)][_0x36c0a9(0x155)][_0x36c0a9(0x177)]=_0x36c0a9(0x189),ui[_0x36c0a9(0x131)]['style'][_0x36c0a9(0x177)]=_0x36c0a9(0x17e),player[_0x36c0a9(0x128)]=![];}function spawnObstacle(){const _0x5ae0c4=_0x5cd481;if(Math[_0x5ae0c4(0x145)]()>CONFIG[_0x5ae0c4(0x136)])return;const _0xac9116=Math[_0x5ae0c4(0x145)]();let _0x23e4cb,_0x5afd73;const _0x2838b9=isMobile?0x5:0x8,_0x4d6d3c=isMobile?0xc:0x28;if(_0xac9116<0.5)_0x23e4cb=new THREE['Mesh'](new THREE[(_0x5ae0c4(0x14f))](0x12,0.8,_0x2838b9,_0x4d6d3c),matRed),_0x5afd73='danger';else _0xac9116<0.95?(_0x23e4cb=new THREE[(_0x5ae0c4(0x196))](new THREE['TorusGeometry'](0x20,0.8,_0x2838b9,_0x4d6d3c),matGreen),_0x5afd73=_0x5ae0c4(0x17c)):(_0x23e4cb=new THREE[(_0x5ae0c4(0x196))](new THREE[(_0x5ae0c4(0x14f))](0x20,0.8,_0x2838b9,_0x4d6d3c),matYellow),_0x5afd73='slow');_0x23e4cb[_0x5ae0c4(0x182)]['set'](0x0,0x0,SPAWN_Z),_0x23e4cb[_0x5ae0c4(0x1a9)]['z']=Math[_0x5ae0c4(0x145)]()*Math['PI'],scene[_0x5ae0c4(0x141)](_0x23e4cb),obstacles['push']({'mesh':_0x23e4cb,'type':_0x5afd73,'checked':![]});}function activateSlowMotion(){const _0x1b6009=_0x5cd481;STATE[_0x1b6009(0x15b)]=0.4,ui[_0x1b6009(0x131)]['style'][_0x1b6009(0x177)]=_0x1b6009(0x189);if(slowMotionTimer)clearTimeout(slowMotionTimer);slowMotionTimer=setTimeout(()=>{const _0xe31af=_0x1b6009;STATE[_0xe31af(0x15b)]=0x1,ui[_0xe31af(0x131)]['style'][_0xe31af(0x177)]=_0xe31af(0x17e);},0x1388);}function updateGameLogic(){const _0x25e864=_0x5cd481;STATE[_0x25e864(0x15c)]-=0.01*STATE[_0x25e864(0x15b)];STATE[_0x25e864(0x15c)]<=0x0&&(STATE[_0x25e864(0x15c)]=0x0,endGame());const _0x25a7a0=Math['floor'](STATE[_0x25e864(0x15c)]);ui['hp'][_0x25e864(0x18b)]!=_0x25a7a0&&(ui['hp'][_0x25e864(0x18b)]=_0x25a7a0,ui[_0x25e864(0x166)]['style'][_0x25e864(0x192)]=STATE[_0x25e864(0x15c)]+'%');STATE['speed']+=CONFIG['speeds'][_0x25e864(0x16d)]*STATE[_0x25e864(0x15b)];const _0x5d49ad=STATE[_0x25e864(0x1a8)]*STATE[_0x25e864(0x15b)];spawnObstacle(),gridHelper[_0x25e864(0x182)]['z']+=_0x5d49ad;if(gridHelper['position']['z']>0x32)gridHelper[_0x25e864(0x182)]['z']=0x0;for(let _0x5a3ae4=obstacles[_0x25e864(0x187)]-0x1;_0x5a3ae4>=0x0;_0x5a3ae4--){let _0x490a02=obstacles[_0x5a3ae4];_0x490a02[_0x25e864(0x1a4)][_0x25e864(0x182)]['z']+=_0x5d49ad,_0x490a02[_0x25e864(0x1a4)][_0x25e864(0x1a9)]['z']-=0.01*STATE[_0x25e864(0x15b)];if(!_0x490a02[_0x25e864(0x19a)]&&_0x490a02[_0x25e864(0x1a4)]['position']['z']>-_0x5d49ad&&_0x490a02[_0x25e864(0x1a4)][_0x25e864(0x182)]['z']<_0x5d49ad*0x2){_0x490a02['checked']=!![];const _0x8cd4ac=CONFIG['baseRadius']*currentScale;if(_0x490a02[_0x25e864(0x185)]===_0x25e864(0x17a)){if(_0x8cd4ac>0x10){STATE[_0x25e864(0x15c)]-=0x14,STATE[_0x25e864(0x132)]-=0x32;if(STATE[_0x25e864(0x132)]<0x0)STATE[_0x25e864(0x132)]=0x0;ui['score'][_0x25e864(0x18b)]=STATE['score'],material[_0x25e864(0x18e)][_0x25e864(0x12e)](CONFIG[_0x25e864(0x194)][_0x25e864(0x146)]),camera[_0x25e864(0x182)]['x']=CONFIG[_0x25e864(0x13d)]+(Math[_0x25e864(0x145)]()-0.5)*0x2,setTimeout(()=>camera['position']['x']=CONFIG['cameraX'],0x64);}else STATE[_0x25e864(0x132)]+=0xa,ui[_0x25e864(0x132)]['innerText']=STATE[_0x25e864(0x132)];}else{if(_0x490a02['type']===_0x25e864(0x17c)){if(_0x8cd4ac>0x1c){STATE[_0x25e864(0x132)]+=0x32,ui[_0x25e864(0x132)]['innerText']=STATE['score'],STATE['health']+=0xf;if(STATE[_0x25e864(0x15c)]>0x64)STATE[_0x25e864(0x15c)]=0x64;material['color'][_0x25e864(0x12e)](CONFIG[_0x25e864(0x194)][_0x25e864(0x17c)]);}}else{if(_0x490a02[_0x25e864(0x185)]===_0x25e864(0x16b)){if(_0x8cd4ac>0x1c){STATE['score']+=0x14,ui[_0x25e864(0x132)][_0x25e864(0x18b)]=STATE['score'],STATE[_0x25e864(0x15c)]+=0xa;if(STATE[_0x25e864(0x15c)]>0x64)STATE[_0x25e864(0x15c)]=0x64;material[_0x25e864(0x18e)]['setHex'](CONFIG['colors'][_0x25e864(0x16b)]),activateSlowMotion();}}}}setTimeout(()=>{const _0x40b3f9=_0x25e864;if(STATE[_0x40b3f9(0x147)]===_0x40b3f9(0x198))material[_0x40b3f9(0x18e)][_0x40b3f9(0x12e)](CONFIG[_0x40b3f9(0x194)]['normal']);},0x96);}_0x490a02[_0x25e864(0x1a4)]['position']['z']>0x64&&(scene[_0x25e864(0x1aa)](_0x490a02['mesh']),obstacles[_0x25e864(0x1ad)](_0x5a3ae4,0x1));}}const videoElement=document[_0x5cd481(0x17b)](_0x5cd481(0x14c));function onResults(_0x54877e){const _0x1bfd21=_0x5cd481;ui[_0x1bfd21(0x140)]['style'][_0x1bfd21(0x177)]=_0x1bfd21(0x17e);STATE[_0x1bfd21(0x147)]==='LOADING'&&(STATE[_0x1bfd21(0x147)]=_0x1bfd21(0x143),ui[_0x1bfd21(0x19b)][_0x1bfd21(0x155)][_0x1bfd21(0x177)]=_0x1bfd21(0x189));let _0x212b21=![];if(_0x54877e[_0x1bfd21(0x1af)]&&_0x54877e[_0x1bfd21(0x1af)]['length']>0x0){const _0x225ddb=_0x54877e[_0x1bfd21(0x1af)][0x0],_0x58cb34=_0x225ddb[0x4],_0x1346fe=_0x225ddb[0x8],_0x4aee4a=Math[_0x1bfd21(0x157)](Math[_0x1bfd21(0x193)](_0x58cb34['x']-_0x1346fe['x'],0x2)+Math[_0x1bfd21(0x193)](_0x58cb34['y']-_0x1346fe['y'],0x2));let _0x57ec39=(_0x4aee4a-0.02)/0.23;_0x57ec39=Math[_0x1bfd21(0x184)](0x0,Math[_0x1bfd21(0x148)](0x1,_0x57ec39)),targetScale=0x1+_0x57ec39*0x3;if(targetScale>2.8)_0x212b21=!![];}const _0x2870cc=2.5,_0x235aed=0x5;if(STATE[_0x1bfd21(0x147)]===_0x1bfd21(0x143)){if(_0x212b21){STATE['gestureTimer']+=_0x2870cc;if(STATE[_0x1bfd21(0x18a)]>0x64)STATE[_0x1bfd21(0x18a)]=0x64;}else{STATE[_0x1bfd21(0x18a)]-=_0x235aed;if(STATE[_0x1bfd21(0x18a)]<0x0)STATE[_0x1bfd21(0x18a)]=0x0;}ui['startBar']['style'][_0x1bfd21(0x192)]=STATE[_0x1bfd21(0x18a)]+'%',STATE[_0x1bfd21(0x18a)]>=0x64&&(STATE[_0x1bfd21(0x18a)]=0x0,startGame());}else{if(STATE[_0x1bfd21(0x147)]===_0x1bfd21(0x171)){if(_0x212b21){STATE[_0x1bfd21(0x18a)]+=_0x2870cc;if(STATE['gestureTimer']>0x64)STATE[_0x1bfd21(0x18a)]=0x64;}else{STATE[_0x1bfd21(0x18a)]-=_0x235aed;if(STATE[_0x1bfd21(0x18a)]<0x0)STATE[_0x1bfd21(0x18a)]=0x0;}ui[_0x1bfd21(0x127)]['style']['width']=STATE[_0x1bfd21(0x18a)]+'%',STATE[_0x1bfd21(0x18a)]>=0x64&&(STATE[_0x1bfd21(0x18a)]=0x0,startGame());}}}const hands=new Hands({'locateFile':_0x49377c=>'https://cdn.jsdelivr.net/npm/@mediapipe/hands/'+_0x49377c});hands[_0x5cd481(0x1a5)]({'maxNumHands':0x1,'modelComplexity':isMobile?0x0:0x1,'minDetectionConfidence':0.5,'minTrackingConfidence':0.5}),hands['onResults'](onResults);const cameraUtils=new Camera(videoElement,{'onFrame':async()=>{const _0x57f5bb=_0x5cd481,_0x32aca6=Date['now']();if(_0x32aca6-lastAIScanTime<CONFIG[_0x57f5bb(0x169)])return;lastAIScanTime=_0x32aca6,await hands[_0x57f5bb(0x164)]({'image':videoElement});},'width':CONFIG[_0x5cd481(0x19e)],'height':CONFIG[_0x5cd481(0x14a)]});cameraUtils[_0x5cd481(0x160)]();function animate(){const _0x531f78=_0x5cd481;requestAnimationFrame(animate);if(STATE['status']===_0x531f78(0x198)){updateGameLogic(),player['rotation']['z']+=0.005*STATE[_0x531f78(0x15b)],currentScale=THREE['MathUtils'][_0x531f78(0x179)](currentScale,targetScale,0.2);const _0x1a9cd5=player[_0x531f78(0x163)][_0x531f78(0x175)][_0x531f78(0x182)][_0x531f78(0x16c)];for(let _0x37d3a6=0x0;_0x37d3a6<CONFIG['particleCount'];_0x37d3a6++){const _0x475d3c=_0x37d3a6*0x3,_0x10c0b1=_0x475d3c+0x1,_0xde2aef=_0x475d3c+0x2;let _0x377f24=currentScale>1.2?(Math[_0x531f78(0x145)]()-0.5)*(currentScale*0.6):0x0;_0x1a9cd5[_0x475d3c]=originalPositions[_0x475d3c]*currentScale+_0x377f24,_0x1a9cd5[_0x10c0b1]=originalPositions[_0x10c0b1]*currentScale+_0x377f24,_0x1a9cd5[_0xde2aef]=originalPositions[_0xde2aef]*currentScale+_0x377f24;}player[_0x531f78(0x163)][_0x531f78(0x175)][_0x531f78(0x182)][_0x531f78(0x17d)]=!![];}renderer[_0x531f78(0x15a)](scene,camera);}animate(),window[_0x5cd481(0x151)](_0x5cd481(0x199),()=>{const _0xdf18f3=_0x5cd481,_0x4a6ab6=window[_0xdf18f3(0x14b)]<0x300;camera[_0xdf18f3(0x13f)]=window[_0xdf18f3(0x14b)]/window[_0xdf18f3(0x186)],camera[_0xdf18f3(0x1a3)]=_0x4a6ab6?0x55:0x3c,camera[_0xdf18f3(0x154)](),renderer[_0xdf18f3(0x12a)](window[_0xdf18f3(0x14b)],window[_0xdf18f3(0x186)]);}),document['addEventListener'](_0x5cd481(0x191),_0xeefcdb=>_0xeefcdb[_0x5cd481(0x1a7)]()),document['onkeydown']=function(_0x15aa28){const _0x5e3f08=_0x5cd481;if(_0x15aa28[_0x5e3f08(0x170)]==0x7b)return![];if(_0x15aa28[_0x5e3f08(0x134)]&&_0x15aa28[_0x5e3f08(0x1a1)]&&(_0x15aa28[_0x5e3f08(0x170)]=='I'[_0x5e3f08(0x153)](0x0)||_0x15aa28[_0x5e3f08(0x170)]=='J'[_0x5e3f08(0x153)](0x0)))return![];if(_0x15aa28[_0x5e3f08(0x134)]&&_0x15aa28['keyCode']=='U'[_0x5e3f08(0x153)](0x0))return![];};
+    </script>
+</body>
+</html>
